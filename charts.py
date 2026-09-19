@@ -148,11 +148,73 @@ def fig_latency(s):
     plt.close(fig)
 
 
+def fig_accuracy_cost_modern(s):
+    """The same data as fig 1, styled as a cover: dark surface, glow, one callout.
+    Colors are the dark-mode steps of the same blue/orange, validated on #101218."""
+    BG, INK_D, INK2_D, MUTED_D, GRID_D = "#101218", "#ffffff", "#c3c2b7", "#8f8d86", "#232733"
+    JEV_D, FABLE_D, OTHER_D = "#3987e5", "#d95926", "#8f8d86"
+    col = {"jev": JEV_D, "fable": FABLE_D}
+    fig = plt.figure(figsize=(16, 9), dpi=150, facecolor=BG)
+    ax = fig.add_axes([0.075, 0.13, 0.885, 0.6], facecolor=BG)
+    ov = s["overall"]
+    place = {"jev": (18, -2, "left"), "fable": (-22, 40, "right"), "astra": (18, -32, "left"),
+             "kimi": (-18, -30, "right"), "minimax": (18, -24, "left"), "deepseek": (18, 22, "left")}
+    for arm, m in ov.items():
+        x, y = m["cost_per_1k_usd"], 100 * m["accuracy"]
+        lo, hi = 100 * m["acc_ci"][0], 100 * m["acc_ci"][1]
+        c = col.get(arm, OTHER_D)
+        ax.plot([x, x], [lo, hi], color=c, lw=3, alpha=0.35, solid_capstyle="round", zorder=2)
+        if arm in col:  # soft glow: stacked translucent discs
+            for size, a in ((2600, 0.05), (1500, 0.08), (800, 0.14)):
+                ax.scatter([x], [y], s=size, color=c, alpha=a, linewidth=0, zorder=3)
+        ax.scatter([x], [y], s=260 if arm in col else 170, color=c, edgecolor=BG, linewidth=2.5, zorder=4)
+        dx, dy, ha = place[arm]
+        ax.annotate(NAMES[arm], (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va="bottom",
+                    fontsize=17 if arm in col else 14, fontweight="bold" if arm in col else "normal",
+                    color=INK_D if arm in col else INK2_D, zorder=5)
+        ax.annotate(f"{y:.1f}%  ·  ${x:,.3f} per 1k", (x, y), xytext=(dx, dy), textcoords="offset points",
+                    ha=ha, va="top", fontsize=13 if arm in col else 12,
+                    color=c if arm in col else MUTED_D, zorder=5)
+    # Callout: what the extra money buys.
+    j, f = ov["jev"], ov["fable"]
+    ax.annotate("", xy=(f["cost_per_1k_usd"] * 0.8, 100 * f["accuracy"] - 0.4),
+                xytext=(j["cost_per_1k_usd"] * 1.35, 100 * j["accuracy"] + 0.5),
+                arrowprops=dict(arrowstyle="-|>", color=INK2_D, lw=1.4, alpha=0.7,
+                                connectionstyle="arc3,rad=-0.18", mutation_scale=18), zorder=1)
+    ratio = f["cost_per_1k_usd"] / j["cost_per_1k_usd"]
+    gain = 100 * (f["accuracy"] - j["accuracy"])
+    ax.text(0.33, 85.8, f"{ratio:.0f}× the price for +{gain:.1f} points", fontsize=21,
+            fontweight="bold", fontfamily="Avenir Next", color=INK_D, ha="center", va="center")
+    ax.set_xscale("log")
+    ax.set_xlim(0.012, 45)
+    ax.set_ylim(63, 91)
+    ax.set_xticks([0.01, 0.1, 1, 10])
+    ax.set_xticklabels(["$0.01", "$0.10", "$1", "$10"], fontsize=13, color=MUTED_D)
+    ax.set_yticks(range(65, 95, 5))
+    ax.set_yticklabels([f"{v}%" for v in range(65, 95, 5)], fontsize=13, color=MUTED_D)
+    ax.set_xlabel("Cost per 1,000 decisions (log scale)", fontsize=13, color=INK2_D, labelpad=10)
+    ax.set_ylabel("Accuracy on 200 decisions", fontsize=13, color=INK2_D, labelpad=10)
+    ax.grid(True, color=GRID_D, lw=1)
+    ax.set_axisbelow(True)
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    ax.tick_params(length=0)
+    fig.text(0.075, 0.93, "Only the two priciest models clearly beat Jev", fontsize=34,
+             fontweight="bold", fontfamily="Avenir Next", color=INK_D, va="top")
+    fig.text(0.075, 0.845, "TypeSafe's Jev vs five frontier LLMs with reasoning on. Kimi K3, MiniMax M3 and "
+             "DeepSeek V4.1 Flash are within noise of Jev;\nClaude Fable 5.1 and GPT-6 Astra are clearly ahead. "
+             "Vertical bars: 95% intervals.", fontsize=15, color=INK2_D, va="top", linespacing=1.5)
+    fig.text(0.075, 0.035, SOURCE, fontsize=11, color=MUTED_D, va="bottom")
+    fig.savefig(OUT / "fig1_accuracy_vs_cost_modern.png", facecolor=BG)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     summary = json.loads((OUT / "summary.json").read_text())
     fig_accuracy_cost(summary)
     fig_human_agreement(summary)
     fig_latency(summary)
+    fig_accuracy_cost_modern(summary)
     oh, un = human_baselines()
     print(f"baselines: one-hot majority {oh:.3f}, uniform {un:.3f}")
     print("wrote", *sorted(p.name for p in OUT.glob("fig*.png")))

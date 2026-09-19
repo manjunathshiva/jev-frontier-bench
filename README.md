@@ -2,7 +2,7 @@
 
 A small, reproducible benchmark of TypeSafe's **Jev 1.13**, a "System One" decision model, against five frontier LLMs with reasoning enabled: **Claude Fable 5.1, GPT-6 Astra, Kimi K3, MiniMax M3 and DeepSeek V4.1 Flash**. Every model got the same 200 decisions from four public datasets. Everything was called through OpenRouter on 19 September 2026, and the whole run cost $4.83.
 
-![Accuracy vs cost](results/fig1_accuracy_vs_cost.png)
+![Accuracy vs cost](results/fig1_accuracy_vs_cost_modern.png)
 
 ## Results
 
