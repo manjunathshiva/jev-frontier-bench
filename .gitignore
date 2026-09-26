@@ -4,3 +4,5 @@ results/cache/
 __pycache__/
 *.pyc
 .DS_Store
+results/ext_items.json
+node_modules/

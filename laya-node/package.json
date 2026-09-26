@@ -1,0 +1,7 @@
+{
+  "name": "laya-node-bench",
+  "private": true,
+  "type": "module",
+  "description": "Runs Laya from Node.js (@receptron/laya, ONNX Runtime) on the benchmark items",
+  "dependencies": { "@receptron/laya": "0.1.2" }
+}

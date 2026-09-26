@@ -77,6 +77,43 @@ python charts.py                # results/fig*.png
 
 **Not included:** the dataset text itself. The Yelp reviews are under Yelp's own licence and ChaosNLI states none, so `bench.py sample` downloads the items from the original sources, and the manifest hashes let you confirm you have the same ones. For the same reason, the models' reasoning summaries in the raw responses are replaced by a placeholder; token counts are kept.
 
+## Update, 26 September 2026: Laya vs Jev on identical questions
+
+[Laya](https://github.com/NandhaKishorM/laya) (ConvAI Innovations, Apache-2.0) is an open-source decision model with the same request and response shape as Jev. Its published comparisons with Jev use Jev figures "third-party published, never measured here", so this adds Laya to the same items, run locally, plus the two datasets where Laya claims its clearest wins (AG News and DAIR Emotion, 100 items each, seed 20260926, `ext_bench.py`). Jev 1.13 ran through the API as before; those 200 extra calls cost $0.0033.
+
+![Laya vs Jev](results/fig4_laya_vs_jev.png)
+
+| Task | Jev 1.13 | Laya (default English) | Laya typed-decisions | Laya multilingual |
+|---|---|---|---|---|
+| AG News (100) | 85% | **93%** | 92% | 91% |
+| Ambiguity, ChaosNLI (50) | 58% | **68%** | 66% | 54% |
+| DAIR Emotion (100) | **65%** | 63% | 62% | 54% |
+| Yes/no, BoolQ (50) | **94%** | 80% | 84% | 64% |
+| Rating, Yelp (50) | **62%** | 32% | 38% | 28% |
+| Routing, BANKING77 (50) | **76%** | 38% | 40% | 38% |
+| Pooled, original 200 | **72.5%** | 54.5% | 57.0% | 46.0% |
+| ECE, original 200 | **0.161** | 0.327 | 0.162 | 0.408 |
+
+- **AG News:** Laya right on 12 items Jev missed, Jev on 4 that Laya missed. **Emotion:** level (Laya's table cites Jev at 48% from an earlier third-party study; here Jev scores 65%).
+- **Human agreement (ChaosNLI, Jensen-Shannon divergence):** Laya typed-decisions 0.111, closer than Jev (0.149); Claude Fable 5.1 0.043, MiniMax M3 0.107.
+- **Defaults only:** no temperature refitting, no option shortlisting, no fine-tuning on these tasks. Raising `head_max_len` to 448 moves BANKING77 from 38% to 42%.
+- **Speed, median per decision:** Laya 20–30 ms on an M4 Max GPU, 49 ms on a 16 GB M4 Mac mini GPU, 103 ms on the mini's CPU; Jev 427 ms through the API (network included). Peak memory on the mini: 2.8 GiB. The mini's 400 answers and probabilities match the M4 Max's exactly.
+- **Node.js** ([`@receptron/laya`](https://www.npmjs.com/package/@receptron/laya) 0.1.2, ONNX, CPU): same answer as Python on all 400 items, 42–158 ms. Probabilities match to within 0.01 except on 16 BANKING77 items, where the port is sharper because it applies the model's calibration temperatures without the clamp Laya's Python package now uses.
+
+```bash
+pip install -r requirements-laya.txt
+python bench.py sample && python ext_bench.py sample      # rebuild both item sets, checked against the manifests
+python bench.py run --arms laya                            # then laya-ml, laya-td (one arm at a time: local GPU)
+python ext_bench.py run --arms jev,laya,laya-ml,laya-td    # needs the OpenRouter key for jev
+python analyze.py --with-laya                              # -> results/summary_with_laya.json (summary.json unchanged)
+python ext_bench.py report                                 # -> results/ext_summary.json
+python laya_chart.py                                       # -> results/fig4_laya_vs_jev.png
+cd laya-node && npm install && node run_node.mjs           # Node/ONNX port -> results/node_calls.jsonl
+python laya-mini/mini_laya.py                              # 16 GB Mac mini run -> results/mini/
+```
+
+New files in `results/`: the Laya records appended to `calls.jsonl`, `ext_calls.jsonl`, `ext_items_manifest.json` (hashes, no dataset text), `ext_summary.json`, `summary_with_laya.json`, `node_calls.jsonl`, `mini/` and `fig4_laya_vs_jev.png`.
+
 ## Caveats
 
 - 50 items per task: per-task differences under about 10 points are within noise.
@@ -91,6 +128,9 @@ python charts.py                # results/fig*.png
 - Clark et al., 2019, BoolQ (CC BY-SA 3.0)
 - Zhang et al., 2015, Yelp Review Full
 - Nie et al., 2020, *What Can We Learn from Collective Human Opinions on Natural Language Inference Data?* (ChaosNLI)
+- Zhang et al., 2015, AG News (via `fancyzhx/ag_news`)
+- Saravia et al., 2018, *CARER* (DAIR Emotion, via `dair-ai/emotion`)
+- ConvAI Innovations, [Laya](https://huggingface.co/convaiinnovations/laya) (Apache-2.0); receptron, [`@receptron/laya`](https://github.com/receptron/laya) (MIT)
 
 ## License
 

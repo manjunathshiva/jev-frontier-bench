@@ -1,0 +1,4 @@
+# Laya arms (local, Apple Silicon GPU via MPS, or CPU)
+laya==0.3.20
+pandas
+pyarrow
