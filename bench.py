@@ -50,7 +50,12 @@ ARMS = {
     "kimi": "moonshotai/kimi-k3",
     "minimax": "minimax/minimax-m3",
     "deepseek": "deepseek/deepseek-v4.1-flash",
+    # Laya (ConvAI Innovations, Apache-2.0): run locally, one checkpoint per arm.
+    "laya": "convaiinnovations/laya",
+    "laya-ml": "convaiinnovations/laya-multilingual",
+    "laya-td": "convaiinnovations/laya-typed-decisions",
 }
+LAYA_CHECKPOINT = {"laya": "english", "laya-ml": "multilingual", "laya-td": "typed-decisions"}
 # One host per model, no fallback, so speed and quantization don't vary call to call.
 # First-party where it supports JSON-schema output; otherwise a named host.
 PROVIDERS = {
@@ -195,6 +200,49 @@ def run_jev(item: dict) -> dict:
             "usage": resp.get("usage"), "provider": resp.get("provider"), "raw": resp}
 
 
+_laya: dict = {}
+_laya_lock = threading.Lock()
+
+
+def laya_router(arm: str):
+    """One warmed-up Laya Router per arm, on the Mac GPU when there is one, so the first
+    logged call doesn't pay the download and model build."""
+    with _laya_lock:
+        if arm not in _laya:
+            from laya import Router
+            r = Router(max_loaded=1)
+            r.predict({"message": "warm up"}, {"q": {"type": "noul", "instructions": "Is this a test?"}},
+                      model=LAYA_CHECKPOINT[arm])
+            _laya[arm] = r
+    return _laya[arm]
+
+
+def run_laya(arm: str, item: dict) -> dict:
+    """Same typed question as Jev gets, answered locally. Laya's answer format matches
+    Jev's (probabilities per option, 0-based score levels, a noul probability)."""
+    if item["type"] == "noul":
+        q = {"type": "noul", "instructions": item["instructions"]}
+    elif item["type"] == "choice":
+        q = {"type": "choice", "instructions": item["instructions"], "criteria": item["options"]}
+    else:
+        q = {"type": "score", "instructions": item["instructions"],
+             "criteria": list(item["options"].values())}
+    r = laya_router(arm)
+    t0 = time.perf_counter()
+    resp = r.predict(item["state"], {"q": q}, model=LAYA_CHECKPOINT[arm])
+    wall = time.perf_counter() - t0
+    a = resp["answers"]["q"]
+    if a["type"] == "noul":
+        probs = {"yes": a["noul"], "no": 1 - a["noul"]}
+    elif a["type"] == "choice":
+        probs = a["probabilities"]
+    else:
+        keys = list(item["options"])
+        probs = {keys[int(k)]: v for k, v in a["probabilities"].items()}
+    return {"probs": probs, "wall_s": wall, "cost": 0.0, "usage": resp.get("usage"),
+            "provider": f"local:{r.device if hasattr(r, 'device') else 'auto'}", "raw": resp}
+
+
 PROMPT = """Input:
 {state}
 
@@ -306,7 +354,12 @@ def call(arm: str, item: dict) -> dict:
     rec = {"item": item["id"], "task": item["task"], "arm": arm, "model": ARMS[arm],
            "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
     try:
-        rec.update(run_jev(item) if arm == "jev" else run_llm(arm, item))
+        if arm == "jev":
+            rec.update(run_jev(item))
+        elif arm in LAYA_CHECKPOINT:
+            rec.update(run_laya(arm, item))
+        else:
+            rec.update(run_llm(arm, item))
         p = rec["probs"]
         total = sum(p.values())
         rec["answer"] = max(p, key=p.get)
@@ -342,7 +395,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["sample", "run", "spend"])
     ap.add_argument("--per-task", type=int)
-    ap.add_argument("--arms", default=",".join(ARMS))
+    ap.add_argument("--arms", default=",".join(a for a in ARMS if a not in LAYA_CHECKPOINT),
+                    help="default: the six API arms; run each Laya arm on its own (--arms laya) "
+                         "so local latencies don't contend for the GPU")
     ap.add_argument("--effort", choices=["low", "medium", "high"],
                     help="force reasoning at this effort (default: model decides)")
     ap.add_argument("--log", help="write to paper/jev_bench/<name>.jsonl instead of calls.jsonl")

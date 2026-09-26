@@ -25,6 +25,7 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent / "results"
 ARMS = ["jev", "fable", "astra", "kimi", "minimax", "deepseek"]
+LAYA_ARMS = ["laya", "laya-ml", "laya-td"]  # local, run 2026-09-26 (--with-laya)
 TASKS = ["route", "yesno", "rate", "ambig"]
 rng = random.Random(0)
 
@@ -35,7 +36,7 @@ def load():
     items = {i["id"]: i for i in json.loads((OUT / "items_manifest.json").read_text())["items"]}
     recs = [json.loads(l) for l in (OUT / "calls.jsonl").read_text().splitlines() if l.strip()]
     ok = {}
-    fails = {a: 0 for a in ARMS}
+    fails = {a: 0 for a in ARMS + LAYA_ARMS}
     for r in recs:
         if r.get("error"):
             fails[r["arm"]] += 1
@@ -176,7 +177,7 @@ def main():
             "reasoning_tokens_median": st.median(rtok), "reasoning_tokens_mean": st.mean(rtok),
         }
 
-    (OUT / "summary.json").write_text(json.dumps(summary, indent=1))
+    (OUT / SUMMARY).write_text(json.dumps(summary, indent=1))
 
     print("OVERALL (all tasks pooled)")
     print(f"{'arm':9} {'n':>4} {'fail':>4} {'acc':>6} {'95% CI':>13} {'conf':>5} {'ECE':>5} "
@@ -200,5 +201,13 @@ def main():
                   f"({m['acc_ci'][0]:.2f}-{m['acc_ci'][1]:.2f})  {extra}")
 
 
+SUMMARY = "summary.json"
+
 if __name__ == "__main__":
+    import sys
+    if "--with-laya" in sys.argv:
+        # A separate file, so summary.json (six API arms) stays byte-identical:
+        # adding arms changes the bootstrap draw order and would shift the other arms' CIs.
+        ARMS = ARMS + LAYA_ARMS
+        SUMMARY = "summary_with_laya.json"
     main()

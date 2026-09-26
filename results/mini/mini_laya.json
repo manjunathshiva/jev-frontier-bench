@@ -1,0 +1,27 @@
+{
+ "chip": "Apple M4",
+ "ram_gb": 16,
+ "macos": "27.0",
+ "laya": "0.3.20",
+ "torch": "2.14.0",
+ "mps": true,
+ "gpu": {
+  "device": "mps",
+  "load_s": 22.3,
+  "n": 400,
+  "accuracy": 0.662,
+  "p50_ms": 48.7,
+  "p95_ms": 123.4,
+  "thermal_after": 0
+ },
+ "cpu": {
+  "device": "cpu",
+  "load_s": 0.6,
+  "n": 100,
+  "accuracy": 0.56,
+  "p50_ms": 102.6,
+  "p95_ms": 233.8,
+  "thermal_after": 0
+ },
+ "peak_rss_gib": 2.81
+}
